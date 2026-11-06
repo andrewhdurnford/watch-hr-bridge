@@ -41,9 +41,18 @@
     if (_mgr) [self info:@"manager created"]; else [self report:@"Bluetooth failed"];
 }
 
+/// CoreBluetooth has no "disconnect this central" call for a peripheral, and stopAdvertising
+/// leaves existing connections open (receivers then sit "connected" until they time out).
+/// Tearing the whole manager down drops the GATT server and with it the connections.
 - (void)stop {
     if (!_mgr) return;
-    ((void (*)(id, SEL))objc_msgSend)(_mgr, NSSelectorFromString(@"stopAdvertising"));
+    id mgr = _mgr;
+    ((void (*)(id, SEL, id))objc_msgSend)(mgr, NSSelectorFromString(@"setDelegate:"), nil);
+    ((void (*)(id, SEL))objc_msgSend)(mgr, NSSelectorFromString(@"stopAdvertising"));
+    ((void (*)(id, SEL))objc_msgSend)(mgr, NSSelectorFromString(@"removeAllServices"));
+    _mgr = nil;
+    _service = nil;
+    _hrChar = nil;
     _subs = 0;
     [self reportReceivers];
     [self info:@"stopped"];

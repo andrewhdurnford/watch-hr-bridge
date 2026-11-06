@@ -6,9 +6,11 @@ import HealthKit
 final class WorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDelegate {
     @Published var heartRate: Int = 0
     @Published var running = false
-    @Published var status = "Ready"
-    @Published var bleStatus = ""
     @Published var receivers = 0
+    /// Bluetooth is unavailable or errored (the signal icon turns orange).
+    @Published var bleProblem = false
+    /// One-time message shown as an alert. Never shown inline, so the layout never moves.
+    @Published var alertMessage: String?
 
     private let ble = WatchBroadcaster()
     private let store = HKHealthStore()
@@ -21,25 +23,32 @@ final class WorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDelegate
 
     override init() {
         super.init()
-        ble.onStatus = { [weak self] in self?.bleStatus = $0 }
+        ble.onStatus = { [weak self] msg in
+            self?.bleProblem = !msg.isEmpty
+            if !msg.isEmpty { self?.alertMessage = msg }
+        }
         ble.onReceivers = { [weak self] in self?.receivers = $0 }
         #if DEBUG
         // Sample state for App Store screenshots in the simulator (no sensor there).
         if CommandLine.arguments.contains("-screenshot-running") {
-            heartRate = 142; running = true; receivers = 1; status = "Sending HR…"
+            heartRate = 142; running = true; receivers = 1
         }
         #endif
     }
 
     func start() {
-        guard HKHealthStore.isHealthDataAvailable() else { status = "Health unavailable"; return }
-        status = "Requesting access…"
+        guard HKHealthStore.isHealthDataAvailable() else {
+            alertMessage = "Health data isn't available on this watch."
+            return
+        }
         let share: Set<HKSampleType> = [HKObjectType.workoutType()]
         let read: Set<HKObjectType> = [hrType]
         store.requestAuthorization(toShare: share, read: read) { [weak self] ok, error in
             DispatchQueue.main.async {
                 guard let self else { return }
-                if ok { self.beginSession() } else { self.status = "Health access denied" }
+                // `ok` only says the prompt finished. Tapping "Don't Allow" shows up as a denied share status.
+                let denied = self.store.authorizationStatus(for: HKObjectType.workoutType()) == .sharingDenied
+                if ok && !denied { self.beginSession() } else { self.alertMessage = Self.healthDeniedMessage }
             }
         }
     }
@@ -61,7 +70,7 @@ final class WorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDelegate
             b.beginCollection(withStart: start) { [weak self] ok, error in
                 DispatchQueue.main.async {
                     self?.running = ok
-                    self?.status = ok ? "Sending HR…" : "Start failed: \(error?.localizedDescription ?? "?")"
+                    if !ok { self?.alertMessage = Self.message(for: error) }
                 }
             }
             ble.start()
@@ -71,7 +80,7 @@ final class WorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDelegate
                 self.ble.sendBPM(self.heartRate)
             }
         } catch {
-            status = "Error: \(error.localizedDescription)"
+            alertMessage = Self.message(for: error)
         }
     }
 
@@ -79,6 +88,21 @@ final class WorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDelegate
         resendTimer?.invalidate(); resendTimer = nil
         session?.end()
         ble.stop()
+    }
+
+    // MARK: Messages
+
+    private static let healthDeniedMessage =
+        "Allow Health access for HR Bridge: on your iPhone open Health, tap your picture, then Apps, then HR Bridge."
+
+    private static func message(for error: Error?) -> String {
+        guard let error else { return "Couldn't start the workout." }
+        let e = error as NSError
+        if e.domain == HKError.errorDomain,
+           e.code == HKError.errorAuthorizationDenied.rawValue || e.code == HKError.errorAuthorizationNotDetermined.rawValue {
+            return healthDeniedMessage
+        }
+        return error.localizedDescription
     }
 
     // MARK: HKWorkoutSessionDelegate
@@ -92,16 +116,14 @@ final class WorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDelegate
                 DispatchQueue.main.async {
                     self?.running = false
                     self?.heartRate = 0
-                    self?.status = "Stopped"
                     self?.session = nil
-                    self?.builder = nil
-                }
+                    self?.builder = nil                }
             }
         }
     }
 
     func workoutSession(_ s: HKWorkoutSession, didFailWithError error: Error) {
-        DispatchQueue.main.async { self.status = "Error: \(error.localizedDescription)" }
+        DispatchQueue.main.async { self.alertMessage = Self.message(for: error) }
     }
 
     // MARK: HKLiveWorkoutBuilderDelegate

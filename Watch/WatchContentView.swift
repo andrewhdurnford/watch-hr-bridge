@@ -1,20 +1,22 @@
 import SwiftUI
 
+/// Three things only: heart rate, receiver/signal indicator, start/stop.
+/// Every row has a fixed height so nothing moves when values change. Problems
+/// appear as a one-time alert (and an orange signal icon), never as inline text.
 struct WatchContentView: View {
     @EnvironmentObject var w: WorkoutManager
 
-    /// Normal states are obvious from the number and the button; only surface problems.
-    private var statusText: String? {
-        ["Sending HR…", "Ready", "Stopped"].contains(w.status) ? nil : w.status
-    }
-
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             reading
-            receiversRow
-            messages
+            signal
             toggleButton
         }
+        .alert("HR Bridge",
+               isPresented: Binding(get: { w.alertMessage != nil },
+                                    set: { if !$0 { w.alertMessage = nil } }),
+               actions: { Button("OK", role: .cancel) {} },
+               message: { Text(w.alertMessage ?? "") })
     }
 
     // MARK: Pieces
@@ -31,33 +33,21 @@ struct WatchContentView: View {
                 .font(.system(size: 22))
                 .foregroundStyle(.red)
         }
+        .frame(height: 64)
     }
 
     /// Devices subscribed to the watch's heart-rate broadcast (Zwift, bike computer…).
-    private var receiversRow: some View {
+    private var signal: some View {
         HStack(spacing: 4) {
-            Image(systemName: "antenna.radiowaves.left.and.right")
+            Image(systemName: w.bleProblem ? "antenna.radiowaves.left.and.right.slash"
+                                           : "antenna.radiowaves.left.and.right")
             Text(w.receivers > 0 ? "\(w.receivers)" : "–")
                 .monospacedDigit()
                 .fontWeight(.semibold)
         }
         .font(.footnote)
-        .foregroundStyle(w.receivers > 0 ? Color.green : Color.secondary)
-    }
-
-    @ViewBuilder private var messages: some View {
-        if !w.bleStatus.isEmpty {
-            Text(w.bleStatus)
-                .font(.caption2)
-                .foregroundStyle(.orange)
-                .multilineTextAlignment(.center)
-        }
-        if let statusText {
-            Text(statusText)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
+        .foregroundStyle(w.bleProblem ? Color.orange : (w.receivers > 0 ? Color.green : Color.secondary))
+        .frame(height: 20)
     }
 
     private var toggleButton: some View {
@@ -71,6 +61,5 @@ struct WatchContentView: View {
                 .background(Capsule().fill(w.running ? Color.red : Color.green))
         }
         .buttonStyle(.plain)
-        .padding(.top, 2)
     }
 }

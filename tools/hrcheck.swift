@@ -25,6 +25,7 @@ final class Checker: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         guard target == nil, name.contains("Watch HR") else { return }
         target = p; p.delegate = self; c.stopScan(); c.connect(p)
     }
+    func centralManager(_ c: CBCentralManager, didDisconnectPeripheral p: CBPeripheral, error: Error?) { out("Disconnected\(error.map { " (\($0.localizedDescription))" } ?? "")") }
     func centralManager(_ c: CBCentralManager, didConnect p: CBPeripheral) { out("Connected"); p.discoverServices([CBUUID(string: "180D")]) }
     func peripheral(_ p: CBPeripheral, didDiscoverServices e: Error?) {
         for s in p.services ?? [] { p.discoverCharacteristics([CBUUID(string: "2A37")], for: s) }
