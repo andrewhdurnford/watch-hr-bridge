@@ -3,9 +3,9 @@ import SwiftUI
 struct WatchContentView: View {
     @EnvironmentObject var w: WorkoutManager
 
-    /// "Sending HR…" is obvious from the number itself; only surface other states.
+    /// Normal states are obvious from the number and the button; only surface problems.
     private var statusText: String? {
-        w.status == "Sending HR…" ? nil : w.status
+        ["Sending HR…", "Ready", "Stopped"].contains(w.status) ? nil : w.status
     }
 
     var body: some View {
