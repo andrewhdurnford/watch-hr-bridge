@@ -23,6 +23,12 @@ final class WorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDelegate
         super.init()
         ble.onStatus = { [weak self] in self?.bleStatus = $0 }
         ble.onReceivers = { [weak self] in self?.receivers = $0 }
+        #if DEBUG
+        // Sample state for App Store screenshots in the simulator (no sensor there).
+        if CommandLine.arguments.contains("-screenshot-running") {
+            heartRate = 142; running = true; receivers = 1; status = "Sending HR…"
+        }
+        #endif
     }
 
     func start() {

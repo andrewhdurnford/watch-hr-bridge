@@ -2,8 +2,7 @@
 #import <CoreBluetooth/CoreBluetooth.h>
 #import <objc/message.h>
 
-// Every CBPeripheralManager / CBMutable* call goes through objc_msgSend so the
-// compiler's watchOS "unavailable" annotations never get a chance to object.
+// CBPeripheralManager / CBMutable* calls go through objc_msgSend.
 
 @implementation WatchBroadcaster {
     id _mgr;

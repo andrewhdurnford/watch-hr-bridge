@@ -2,9 +2,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// EXPERIMENT: advertises a standard BLE Heart Rate service straight from the watch.
-/// CBPeripheralManager is marked unavailable for watchOS in the SDK headers, so this
-/// reaches it through the Objective-C runtime to find out whether the OS allows it.
+/// Advertises a standard BLE Heart Rate service (0x180D) from the watch.
+/// The peripheral role is reached through the Objective-C runtime.
 @interface WatchBroadcaster : NSObject
 /// Called only for problems worth showing (Bluetooth off, not allowed, errors),
 /// and with an empty string once the problem has cleared.
